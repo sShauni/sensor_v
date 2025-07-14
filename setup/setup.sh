@@ -6,6 +6,9 @@ sudo rm -rf LCD-show
 git clone https://github.com/goodtft/LCD-show.git
 chmod -R 755 LCD-show
 
+sudo systemctl daemon-reload
+sudo systemctl enable startup.service
+sudo systemctl start startup.service
 
 echo "
 Dependências instaladas..."
