@@ -1,0 +1,28 @@
+*LCD APENAS FUNCIONA NO RASPIAN BULLEYES*
+
+
+Para trocar para o lcd (não funciona):
+
+cd LCD-show/
+sudo ./LCD35-show
+
+Para auto-iniciar o programa:
+	sudo cp startup.service /etc/systemd/system/
+	sudo systemctl enable startup.service
+	sudo systemctl start startup.service
+	reboot
+	
+Para ativar o serviço de montagem da pasta comartilhada:
+	sudo systemctl daemon-reexec
+	sudo systemctl daemon-reload
+	sudo systemctl enable smb-log.mount
+	sudo systemctl start smb-log.mount
+
+Para tirar GUI do raspian:
+	sudo raspi-config
+
+Para trocar para o lcd:
+	adicionar linhas de comando /boot/config.txt e 	/boot/cmdline.txt
+
+Colocar os arquivos systemd em /etc/systemd/system/
+	

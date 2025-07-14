@@ -1,0 +1,17 @@
+[Unit]
+Description=Startup Etiqueta Programa
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/pi/sensor_v/prog.py
+WorkingDirectory=/home/pi/sensor_v
+StandardOutput=append:/home/pi/sensor_v/log.txt
+StandardError=append:/home/pi/sensor_v/log.txt
+User=pi
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+
+[Install]
+WantedBy=multi-user.target
