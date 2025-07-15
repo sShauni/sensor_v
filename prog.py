@@ -227,7 +227,7 @@ def tratar_largada():
 
     # Espera largada ser liberada para evitar múltiplas leituras
     while medindo:
-        ativo = (not GPIO.input(SENSOR_LARGADA)) if USANDO_TFT else GPIO.input(SENSOR_LARGADA)
+        ativo = GPIO.input(SENSOR_LARGADA) if USANDO_TFT else not GPIO.input(SENSOR_LARGADA)
         if TESTE_TOQUE and not sensor_simulado_largada:
             ativo = False
         if not ativo:
@@ -241,7 +241,7 @@ def tratar_largada():
     # Aguarda chegada (até 10 segundos)
     tempo_inicio = time.time()
     while medindo and (time.time() - tempo_inicio < 10):
-        ativo = (not GPIO.input(SENSOR_CHEGADA)) if USANDO_TFT else GPIO.input(SENSOR_CHEGADA)
+        ativo = GPIO.input(SENSOR_CHEGADA) if USANDO_TFT else not GPIO.input(SENSOR_LARGADA)
         if TESTE_TOQUE and sensor_simulado_chegada:
             ativo = True
         if ativo:
