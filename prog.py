@@ -211,32 +211,47 @@ def registrar_tempo(t1, t2):
 def tratar_largada():
     global sensor_simulado_largada, sensor_simulado_chegada
     print("[LARGADA] Tratando largada...")
-    t1 = time.time()
-    atualizar_circulo(SENSOR_LARGADA, True)
     
-    # Aguarda liberação do sensor
-    while medindo and ((TESTE_TOQUE and sensor_simulado_largada) or 
-                      (USANDO_GPIO and (not GPIO.input(SENSOR_LARGADA) if USANDO_TFT else GPIO.input(SENSOR_LARGADA)))):
+    # Espera largada ser ativada
+    while medindo:
+        ativo = (not GPIO.input(SENSOR_LARGADA)) if USANDO_TFT else GPIO.input(SENSOR_LARGADA)
+        if TESTE_TOQUE and sensor_simulado_largada:
+            ativo = True
+        if ativo:
+            break
         time.sleep(0.01)
         root.update_idletasks()
     
+    t1 = time.time()  # Começa a contar exatamente na ativação da largada
+    atualizar_circulo(SENSOR_LARGADA, True)
+
+    # Espera largada ser liberada para evitar múltiplas leituras
+    while medindo:
+        ativo = (not GPIO.input(SENSOR_LARGADA)) if USANDO_TFT else GPIO.input(SENSOR_LARGADA)
+        if TESTE_TOQUE and not sensor_simulado_largada:
+            ativo = False
+        if not ativo:
+            break
+        time.sleep(0.01)
+        root.update_idletasks()
+
     atualizar_circulo(SENSOR_LARGADA, False)
     time.sleep(0.1)
-    
-    # Aguarda chegada
+
+    # Aguarda chegada (até 10 segundos)
     tempo_inicio = time.time()
     while medindo and (time.time() - tempo_inicio < 10):
+        ativo = (not GPIO.input(SENSOR_CHEGADA)) if USANDO_TFT else GPIO.input(SENSOR_CHEGADA)
         if TESTE_TOQUE and sensor_simulado_chegada:
+            ativo = True
+        if ativo:
             registrar_tempo(t1, time.time())
-            sensor_simulado_chegada = False
+            if TESTE_TOQUE:
+                sensor_simulado_chegada = False
             break
-        elif USANDO_GPIO and (not GPIO.input(SENSOR_CHEGADA) if USANDO_TFT else GPIO.input(SENSOR_CHEGADA)):
-            registrar_tempo(t1, time.time())
-            break
-            
         time.sleep(0.01)
         root.update_idletasks()
-    
+
     atualizar_circulo(SENSOR_CHEGADA, False)
     if TESTE_TOQUE:
         sensor_simulado_largada = False
