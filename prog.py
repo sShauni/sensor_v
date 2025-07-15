@@ -7,17 +7,23 @@ import os
 import time
 import platform
 
+# === VARIÁVEIS GLOBAIS ===
+# PRIMEIRO definimos os pinos dos sensores
+SENSOR_LARGADA = 17
+SENSOR_CHEGADA = 27
+
+# Depois as configurações que dependem dos pinos
 # === CONFIGURAÇÕES ===
 if platform.system() == 'Windows':
     TESTE_TOQUE = True  # Ativa simulação por toque no Windows
     USANDO_GPIO = False
     USANDO_TFT = False
 else:
-    TESTE_TOQUE = False  # Ativa simulação por toque no Windows
+    TESTE_TOQUE = False
     USANDO_GPIO = True
     USANDO_TFT = True
         
-if USANDO_GPIO == True:
+if USANDO_GPIO:
     try:
         import RPi.GPIO as GPIO
         GPIO.setmode(GPIO.BCM)
@@ -32,11 +38,9 @@ if USANDO_GPIO == True:
         messagebox.showerror("Erro de GPIO", f"Erro na configuração: {str(e)}")
         USANDO_GPIO = False
 
-# === VARIÁVEIS GLOBAIS ===
+# Restante das variáveis globais
 sensor_simulado_largada = False
 sensor_simulado_chegada = False
-SENSOR_LARGADA = 17
-SENSOR_CHEGADA = 27
 PASTA_LOGS = 'logs'
 log_index = 0
 ARQUIVO_EXCEL = ''
@@ -46,6 +50,7 @@ leituras = []
 medindo = False
 thread_leitura = None
 
+print(f"TESTE_TOQUE: {TESTE_TOQUE}, USANDO_GPIO: {USANDO_GPIO}")
 # ===================================================================
 #  INÍCIO DO BLOCO DE TODAS AS FUNÇÕES
 #  (Movido para antes da criação da GUI para evitar NameError)
@@ -111,146 +116,164 @@ def atualizar_titulo_log():
     lbl_log_titulo.config(text=log_atual)
 
 def salvar_leitura_excel(leitura):
-    # ... (código da função sem alterações)
-    if not os.path.exists(PASTA_LOGS):
-        os.makedirs(PASTA_LOGS)
-    if not os.path.exists(ARQUIVO_EXCEL):
-        wb = Workbook()
-        ws = wb.active
-        ws.append(['Data', 'Hora', 'Passagem', 'Tempo (s)'])
-    else:
-        wb = load_workbook(ARQUIVO_EXCEL)
-        ws = wb.active
+    print(f"[SALVAR] {leitura}")
+
+    global ARQUIVO_EXCEL
     
-    data = leitura['data']
-    hora = leitura['hora']
-    tempo = leitura['tempo']
-    passagem = leitura['passagem']
-    ws.append([data, hora, passagem, tempo])
-    wb.save(ARQUIVO_EXCEL)
+    try:
+        # Verifica se o arquivo já existe
+        if os.path.exists(ARQUIVO_EXCEL):
+            wb = load_workbook(ARQUIVO_EXCEL)
+            ws = wb.active
+        else:
+            # Se não existir, cria um novo
+            wb = Workbook()
+            ws = wb.active
+            ws.append(['Data', 'Hora', 'Passagem', 'Tempo (s)'])  # Cabeçalhos
+        
+        # Adiciona os dados da leitura
+        ws.append([
+            leitura['data'],
+            leitura['hora'],
+            leitura['passagem'],
+            leitura['tempo']
+        ])
+        
+        # Salva o arquivo
+        wb.save(ARQUIVO_EXCEL)
+        print(f"Leitura {leitura['passagem']} salva com sucesso em {ARQUIVO_EXCEL}")
+        
+    except Exception as e:
+        print(f"ERRO ao salvar leitura: {str(e)}")
+        messagebox.showerror("Erro ao Salvar", f"Não foi possível salvar a leitura: {str(e)}")
 
 def leitura_id():
     existente = [l['passagem'] for l in leituras]
     return max(existente + [0]) + 1
+    
+def atualizar_circulo(sensor, ativo):
+    if sensor == SENSOR_LARGADA:
+        canvas_largada.itemconfig(circ_largada, fill='red' if ativo else 'darkgreen')
+    elif sensor == SENSOR_CHEGADA:
+        canvas_chegada.itemconfig(circ_chegada, fill='red' if ativo else 'darkgreen')
+    root.update()  # Força atualização da interface    
 
 def simular_sensor(sensor_id):
     global sensor_simulado_largada, sensor_simulado_chegada
-    if not TESTE_TOQUE:
+    print(f"[SIMULAÇÃO] Sensor {sensor_id} clicado")
+
+    if not TESTE_TOQUE or not medindo:
+        print("[SIMULAÇÃO] Ignorado - não está medindo ou não em teste")
         return
+
     if sensor_id == SENSOR_LARGADA:
         sensor_simulado_largada = True
         atualizar_circulo(SENSOR_LARGADA, True)
+        root.after(100, lambda: atualizar_circulo(SENSOR_LARGADA, False))  # só visual
+        root.after(100, lambda: desativar_sensor_simulado('largada'))      # desativa variável
+
     elif sensor_id == SENSOR_CHEGADA:
         sensor_simulado_chegada = True
         atualizar_circulo(SENSOR_CHEGADA, True)
+        root.after(100, lambda: atualizar_circulo(SENSOR_CHEGADA, False))  # só visual
+        root.after(100, lambda: desativar_sensor_simulado('chegada'))      # desativa variável
 
-def atualizar_circulo(sensor_id, ativo):
-    cor = 'lime' if ativo else 'darkgreen'
-    if sensor_id == SENSOR_LARGADA:
-        canvas_largada.itemconfig(circ_largada, fill=cor)
-    elif sensor_id == SENSOR_CHEGADA:
-        canvas_chegada.itemconfig(circ_chegada, fill=cor)
+def desativar_sensor_simulado(sensor):
+    global sensor_simulado_largada, sensor_simulado_chegada
+    if sensor == 'largada':
+        sensor_simulado_largada = False
+    elif sensor == 'chegada':
+        sensor_simulado_chegada = False
+
+def registrar_tempo(t1, t2):
+    print(">>> Registrando tempo")
+    tempo = round(t2 - t1, 2)
+    leitura = {
+        'data': datetime.now().strftime('%d/%m/%Y'),
+        'hora': datetime.now().strftime('%H:%M:%S'),
+        'tempo': tempo,
+        'passagem': leitura_id()
+    }
+    leituras.append(leitura)
+    salvar_leitura_excel(leitura)
+    
+    # Atualiza a interface na thread principal
+    root.after(0, atualizar_lista)
+    
+    # Pisca o LED de chegada
+    for _ in range(3):
+        if not medindo: break
+        root.after(0, lambda: atualizar_circulo(SENSOR_CHEGADA, True))
+        time.sleep(0.2)
+        root.after(0, lambda: atualizar_circulo(SENSOR_CHEGADA, False))
+        time.sleep(0.2)
+
+def tratar_largada():
+    global sensor_simulado_largada, sensor_simulado_chegada
+    print("[LARGADA] Tratando largada...")
+    t1 = time.time()
+    atualizar_circulo(SENSOR_LARGADA, True)
+    
+    # Aguarda liberação do sensor
+    while medindo and ((TESTE_TOQUE and sensor_simulado_largada) or 
+                      (USANDO_GPIO and (not GPIO.input(SENSOR_LARGADA) if USANDO_TFT else GPIO.input(SENSOR_LARGADA)))):
+        time.sleep(0.01)
+        root.update_idletasks()
+    
+    atualizar_circulo(SENSOR_LARGADA, False)
+    time.sleep(0.1)
+    
+    # Aguarda chegada
+    tempo_inicio = time.time()
+    while medindo and (time.time() - tempo_inicio < 10):
+        if TESTE_TOQUE and sensor_simulado_chegada:
+            registrar_tempo(t1, time.time())
+            sensor_simulado_chegada = False
+            break
+        elif USANDO_GPIO and (not GPIO.input(SENSOR_CHEGADA) if USANDO_TFT else GPIO.input(SENSOR_CHEGADA)):
+            registrar_tempo(t1, time.time())
+            break
+            
+        time.sleep(0.01)
+        root.update_idletasks()
+    
+    atualizar_circulo(SENSOR_CHEGADA, False)
+    if TESTE_TOQUE:
+        sensor_simulado_largada = False
+        sensor_simulado_chegada = False
 
 def monitorar():
     global medindo
-    
-    # Desabilita o botão durante a operação
-    btn_iniciar.config(state=tk.DISABLED)
-    
+    print("[MONITORAR] Iniciando monitoramento...")    
     try:
-        if not USANDO_GPIO and not TESTE_TOQUE:
-            # =============================================
-            # MODO WINDOWS SEM SIMULAÇÃO (APENAS INTERFACE)
-            # =============================================
-            while medindo:
-                time.sleep(0.1)  # Mantém a thread ativa
-                
-        else:
-            # =============================================
-            # MODO RASPBERRY PI OU MODO DE TESTE
-            # =============================================
-            ultimo_estado_largada = False
-            ultimo_estado_chegada = False
+        while medindo:
+            # Manter a interface responsiva
+            root.update_idletasks()
             
-            while medindo:
-                # Verifica se estamos usando GPIO ou simulação por toque
-                if USANDO_GPIO:
-                    # Leitura dos sensores físicos
-                    estado_largada = not GPIO.input(SENSOR_LARGADA) if USANDO_TFT else GPIO.input(SENSOR_LARGADA)
-                    estado_chegada = not GPIO.input(SENSOR_CHEGADA) if USANDO_TFT else GPIO.input(SENSOR_CHEGADA)
-                else:
-                    # Modo de teste por toque
-                    estado_largada = sensor_simulado_largada
-                    estado_chegada = sensor_simulado_chegada
-                    # Reseta os sensores simulados após a leitura
-                    sensor_simulado_largada = False
-                    sensor_simulado_chegada = False
-                
-                # Detecção de ativação do sensor de largada
-                if estado_largada and not ultimo_estado_largada:
-                    atualizar_circulo(SENSOR_LARGADA, True)
-                    t1 = time.time()
-                    
-                    # Se for GPIO, espera o sensor ser liberado
-                    if USANDO_GPIO:
-                        while (not GPIO.input(SENSOR_LARGADA) if USANDO_TFT else GPIO.input(SENSOR_LARGADA)):
-                            if not medindo: break
-                            time.sleep(0.01)
-                    
-                    time.sleep(0.1)  # Debounce
-                    
-                    # Procura pela chegada
-                    chegada_detectada = False
-                    while medindo and not chegada_detectada:
-                        if USANDO_GPIO:
-                            chegada_detectada = not GPIO.input(SENSOR_CHEGADA) if USANDO_TFT else GPIO.input(SENSOR_CHEGADA)
-                        else:
-                            chegada_detectada = sensor_simulado_chegada
-                            sensor_simulado_chegada = False
-                        
-                        if chegada_detectada:
-                            atualizar_circulo(SENSOR_CHEGADA, True)
-                            t2 = time.time()
-                            tempo = round(t2 - t1, 2)
-                            
-                            # Registra a leitura
-                            dt = datetime.now()
-                            leitura = {
-                                'data': dt.strftime('%d/%m/%Y'),
-                                'hora': dt.strftime('%H:%M:%S'),
-                                'tempo': tempo,
-                                'passagem': leitura_id()
-                            }
-                            leituras.append(leitura)
-                            salvar_leitura_excel(leitura)
-                            atualizar_lista()
-                            
-                            # Feedback visual
-                            for _ in range(5):
-                                if not medindo: break
-                                time.sleep(0.1)
-                            
-                            break
-                        
+            if TESTE_TOQUE:
+                # Lógica de simulação
+                if sensor_simulado_largada:
+                    tratar_largada()
+                    while medindo and sensor_simulado_largada:
                         time.sleep(0.01)
-                    
-                    # Desativa os círculos
-                    atualizar_circulo(SENSOR_LARGADA, False)
-                    atualizar_circulo(SENSOR_CHEGADA, False)
-                
-                # Atualiza os estados anteriores
-                ultimo_estado_largada = estado_largada
-                ultimo_estado_chegada = estado_chegada
-                
-                time.sleep(0.01)
-    
+                        root.update_idletasks()
+            elif USANDO_GPIO:
+                # Lógica com GPIO real
+                estado_largada = not GPIO.input(SENSOR_LARGADA) if USANDO_TFT else GPIO.input(SENSOR_LARGADA)
+                if estado_largada:
+                    tratar_largada()
+            
+            time.sleep(0.05)  # Pequena pausa para não sobrecarregar
     except Exception as e:
-        print(f"Erro durante monitoramento: {e}")
+        print(f"Erro: {e}")
     finally:
-        # Restaura o estado do botão
-        btn_iniciar.config(state=tk.NORMAL)
-        atualizar_circulo(SENSOR_LARGADA, False)
-        atualizar_circulo(SENSOR_CHEGADA, False)
+        medindo = False
+        btn_iniciar.after(100, lambda: btn_iniciar.config(
+            text="INICIAR", 
+            bg='lightgreen', 
+            fg='black', 
+            state=tk.NORMAL
+        ))
 
 def atualizar_lista():
     lista.delete(0, tk.END)
@@ -259,29 +282,23 @@ def atualizar_lista():
 
 def iniciar_parar():
     global medindo, thread_leitura
+    print(f"[BOTÃO] medindo: {medindo}")    
     if not medindo:
+        # Iniciar monitoramento
         if not ARQUIVO_EXCEL:
             messagebox.showwarning("Sem Log", "Crie um novo log antes de iniciar a cronometragem.")
             return
-        
-        # Atualiza os círculos apenas se estiver usando GPIO
-        if USANDO_GPIO and USANDO_TFT:
-            atualizar_circulo(SENSOR_LARGADA, not GPIO.input(SENSOR_LARGADA))
-            atualizar_circulo(SENSOR_CHEGADA, not GPIO.input(SENSOR_CHEGADA))
-        
+            
         medindo = True
+        btn_iniciar.config(text="PARAR", bg='red', fg='white', activebackground='darkred')
+        print("[BOTÃO] Iniciando thread...")
         thread_leitura = threading.Thread(target=monitorar)
         thread_leitura.daemon = True
         thread_leitura.start()
-        btn_iniciar.config(text="PARAR", bg='red', fg='white')  # Muda cor e texto
     else:
+        # Parar monitoramento
         medindo = False
-        # Aguarda a thread terminar (com timeout para não travar)
-        if thread_leitura is not None:
-            thread_leitura.join(timeout=0.5)
-        btn_iniciar.config(text="INICIAR", bg='lightgreen', fg='black')  # Volta ao estado inicial
-        atualizar_circulo(SENSOR_LARGADA, False)
-        atualizar_circulo(SENSOR_CHEGADA, False)
+        btn_iniciar.config(text="INICIAR", bg='lightgreen', fg='black', state=tk.NORMAL)
 
 def excluir_leitura():
     sel = lista.curselection()
