@@ -7,7 +7,7 @@ import os
 import time
 
 # === CONFIGURAÇÕES ===
-TESTE_TOQUE = True  # Altere para False para desabilitar toques nos sensores
+TESTE_TOQUE = False  # Altere para False para desabilitar toques nos sensores
 
 USANDO_GPIO = False
 try:
@@ -146,41 +146,65 @@ def atualizar_circulo(sensor_id, ativo):
 def monitorar():
     global medindo, sensor_simulado_largada, sensor_simulado_chegada
     while medindo:
-        largada_ativada = (USANDO_GPIO and GPIO.input(SENSOR_LARGADA)) or (TESTE_TOQUE and sensor_simulado_largada)
+        # Verifica se há um sinal real ou simulado
+        largada_ativada = False
+        if USANDO_GPIO:
+            largada_ativada = GPIO.input(SENSOR_LARGADA)
+        if TESTE_TOQUE and not largada_ativada:
+            largada_ativada = sensor_simulado_largada
+        
         if largada_ativada:
-            sensor_simulado_largada = False
+            # Reset imediato do sensor simulado
+            if TESTE_TOQUE:
+                sensor_simulado_largada = False
+                
             atualizar_circulo(SENSOR_LARGADA, True)
             t1 = time.time()
             
+            # Aguarda o sensor desativar (se for GPIO)
             if USANDO_GPIO:
-                while GPIO.input(SENSOR_LARGADA) and medindo:  # Adicionei verificação de medindo
+                while GPIO.input(SENSOR_LARGADA) and medindo:
                     time.sleep(0.01)
-                    if not medindo: break
             
-            time.sleep(0.3)
-            if not medindo: break  # Verificação adicional
-
+            time.sleep(0.3)  # Pequeno delay anti-bounce
+            
+            # Procura pela ativação da chegada
             chegada_ativada = False
             while not chegada_ativada and medindo:
-                chegada_ativada = (USANDO_GPIO and GPIO.input(SENSOR_CHEGADA)) or (TESTE_TOQUE and sensor_simulado_chegada)
+                if USANDO_GPIO:
+                    chegada_ativada = GPIO.input(SENSOR_CHEGADA)
+                if TESTE_TOQUE and not chegada_ativada:
+                    chegada_ativada = sensor_simulado_chegada
                 time.sleep(0.01)
-                if not medindo: break
             
-            if not medindo: break
+            if not medindo:
+                break
 
-            sensor_simulado_chegada = False
+            # Reset do sensor de chegada
+            if TESTE_TOQUE:
+                sensor_simulado_chegada = False
+                
             atualizar_circulo(SENSOR_CHEGADA, True)
             t2 = time.time()
+            
+            # Registra o tempo
             tempo = round(t2 - t1, 2)
             dt = datetime.now()
-            leitura = {'data': dt.strftime('%d/%m/%Y'), 'hora': dt.strftime('%H:%M:%S'), 'tempo': tempo, 'passagem': leitura_id()}
+            leitura = {
+                'data': dt.strftime('%d/%m/%Y'),
+                'hora': dt.strftime('%H:%M:%S'),
+                'tempo': tempo,
+                'passagem': leitura_id()
+            }
             
             leituras.append(leitura)
             salvar_leitura_excel(leitura)
             atualizar_lista()
             
-            for _ in range(10):  # Diminui o tempo de espera mas mantém a visualização
-                if not medindo: break
+            # Mantém os círculos ativos por 0.5s
+            for _ in range(10):
+                if not medindo:
+                    break
                 time.sleep(0.05)
             
             atualizar_circulo(SENSOR_LARGADA, False)
@@ -198,24 +222,28 @@ def atualizar_lista():
         lista.insert(tk.END, f"{l['passagem']:02} - {l['tempo']}s")
 
 def iniciar_parar():
-    global medindo, thread_leitura
+    global medindo, thread_leitura, sensor_simulado_largada, sensor_simulado_chegada
     if not medindo:
         if not ARQUIVO_EXCEL:
             messagebox.showwarning("Sem Log", "Crie um novo log antes de iniciar a cronometragem.")
             return
+        
+        # Resetar os sensores simulados ao iniciar
+        sensor_simulado_largada = False
+        sensor_simulado_chegada = False
+        atualizar_circulo(SENSOR_LARGADA, False)
+        atualizar_circulo(SENSOR_CHEGADA, False)
+        
         medindo = True
         thread_leitura = threading.Thread(target=monitorar)
         thread_leitura.daemon = True
         thread_leitura.start()
-        btn_iniciar.config(text="PARAR", bg='red')  # Muda para vermelho quando está ativo
+        btn_iniciar.config(text="PARAR", bg='red')
     else:
         medindo = False
-        # Aguarda a thread terminar (com timeout para não travar)
         if thread_leitura is not None:
             thread_leitura.join(timeout=1)
-        btn_iniciar.config(text="INICIAR", bg='lightgreen')  # Volta para verde claro
-        atualizar_circulo(SENSOR_LARGADA, False)
-        atualizar_circulo(SENSOR_CHEGADA, False)
+        btn_iniciar.config(text="INICIAR", bg='lightgreen')
 
 def excluir_leitura():
     sel = lista.curselection()
