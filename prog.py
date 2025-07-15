@@ -7,6 +7,8 @@ import os
 import time
 
 # === CONFIGURAÇÕES ===
+TESTE_TOQUE = True  # Altere para False para desabilitar toques nos sensores
+
 USANDO_GPIO = False
 try:
     import RPi.GPIO as GPIO
@@ -95,7 +97,7 @@ def salvar_leitura_excel(leitura):
 # === GUI ===
 root = tk.Tk()
 root.title("Cronometragem")
-root.geometry("480x320")
+root.attributes('-fullscreen', True)  # Tela cheia
 root.configure(bg='white')
 
 frame_lista = tk.Frame(root, bg='white')
@@ -132,15 +134,26 @@ lbl_largada = tk.Label(frame_controles, text="LARGADA", font=("Arial", 10))
 lbl_largada.pack()
 canvas_largada = tk.Canvas(frame_controles, width=50, height=50)
 circ_largada = canvas_largada.create_oval(5, 5, 45, 45, fill='darkgreen')
+if TESTE_TOQUE:
+    canvas_largada.bind("<Button-1>", lambda e: simular_sensor(SENSOR_LARGADA))
 canvas_largada.pack()
 
 lbl_chegada = tk.Label(frame_controles, text="CHEGADA", font=("Arial", 10))
 lbl_chegada.pack()
 canvas_chegada = tk.Canvas(frame_controles, width=50, height=50)
 circ_chegada = canvas_chegada.create_oval(5, 5, 45, 45, fill='darkgreen')
+if TESTE_TOQUE:
+    canvas_chegada.bind("<Button-1>", lambda e: simular_sensor(SENSOR_CHEGADA))
 canvas_chegada.pack()
 
 # === FUNÇÕES EXISTENTES ===
+# Simulação de clique em sensor (modo teste)
+def simular_sensor(sensor_id):
+    if not TESTE_TOQUE:
+        return
+    atualizar_circulo(sensor_id, True)
+    time.sleep(0.1)
+    atualizar_circulo(sensor_id, False)
 def atualizar_circulo(sensor_id, ativo):
     cor = 'lime' if ativo else 'darkgreen'
     if sensor_id == SENSOR_LARGADA:
