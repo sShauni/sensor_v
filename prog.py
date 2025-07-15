@@ -9,8 +9,8 @@ import platform
 
 # === VARIÁVEIS GLOBAIS ===
 # PRIMEIRO definimos os pinos dos sensores
-SENSOR_LARGADA = 17
-SENSOR_CHEGADA = 27
+SENSOR_LARGADA = 26 #antes 17
+SENSOR_CHEGADA = 20 #antes 27
 
 # Depois as configurações que dependem dos pinos
 # === CONFIGURAÇÕES ===
@@ -259,7 +259,7 @@ def monitorar():
                         root.update_idletasks()
             elif USANDO_GPIO:
                 # Lógica com GPIO real
-                estado_largada = not GPIO.input(SENSOR_LARGADA) if USANDO_TFT else GPIO.input(SENSOR_LARGADA)
+                estado_largada = GPIO.input(SENSOR_LARGADA) if USANDO_TFT else not GPIO.input(SENSOR_LARGADA)
                 if estado_largada:
                     tratar_largada()
             
