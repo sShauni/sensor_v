@@ -357,6 +357,32 @@ def inicializar_app():
         carregar_log_existente(len(lista_logs) - 1)
     else:
         criar_novo_log()
+        
+def exportar_para_pendrive():
+    global ARQUIVO_EXCEL, log_atual
+
+    if not ARQUIVO_EXCEL or not os.path.exists(ARQUIVO_EXCEL):
+        messagebox.showerror("Erro", "Nenhum log carregado para exportar.")
+        return
+
+    base_pendrive = '/media'
+    try:
+        subpastas = os.listdir(base_pendrive)
+        for pasta in subpastas:
+            caminho_pendrive = os.path.join(base_pendrive, pasta)
+            if os.path.ismount(caminho_pendrive):
+                destino = os.path.join(caminho_pendrive, f"{log_atual}.xlsx")
+                with open(ARQUIVO_EXCEL, 'rb') as origem:
+                    with open(destino, 'wb') as dest:
+                        dest.write(origem.read())
+                messagebox.showinfo("Exportado", f"Log exportado com sucesso para:\n{destino}")
+                return
+        
+        # Se não encontrou pendrive montado
+        messagebox.showerror("Pendrive não encontrado", "Nenhum pendrive conectado foi detectado.")
+    except Exception as e:
+        messagebox.showerror("Erro ao Exportar", f"Ocorreu um erro ao exportar:\n{e}")
+
 # ===================================================================
 #  FIM DO BLOCO DE FUNÇÕES
 # ===================================================================
@@ -417,6 +443,16 @@ btn_novo_log.pack(pady=5)
 
 btn_excluir = tk.Button(frame_controles, text="EXCLUIR", bg='red', fg='white', font=("Arial", 10), command=excluir_leitura)
 btn_excluir.pack(pady=5)
+
+btn_exportar = tk.Button(
+    frame_controles,
+    text="EXPORTAR",
+    bg='orange',
+    fg='black',
+    font=("Arial", 10),
+    command=exportar_para_pendrive
+)
+btn_exportar.pack(pady=5)
 
 lbl_largada = tk.Label(frame_controles, text="LARGADA", font=("Arial", 10), bg='white')
 lbl_largada.pack()
